@@ -8,6 +8,7 @@ namespace edm {
   class Handle {
   public:
     Handle() {};
+    T const& operator*() {};
   };
 
   class Event {
@@ -25,6 +26,7 @@ struct Foo {};
 void doWork( edm::Event& iEvent, edm::EDGetTokenT<Foo> const& token) {
   edm::Handle<Foo> h;
   iEvent.getByToken(token, h);
+  Foo const& f = *h;
 // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken is deprecated [cms-handle]
 // CHECK-FIXES: {{^}}  iEvent.getHandle(token, h);{{$}}
 }
