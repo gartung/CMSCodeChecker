@@ -36,7 +36,6 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     std::string ttypename;
     std::string dname;
     std::string fname;
-    SourceLocation declstart;
     SourceLocation declend;
     auto MatchedDecl = MatchedCallExpr->getMethodDecl();
     auto MatchedName = MatchedDecl->getNameAsString();
@@ -50,34 +49,24 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
          auto iname = qualtype.getAsString();
 
          if ( iname.compare(0,edmgettoken.size(),edmgettoken) == 0 ) {
-             llvm::errs() <<edmgettoken<<" type found\n";
              for (auto D: llvm::dyn_cast<CXXConstructExpr>(I)->arguments()) {
                  auto F=llvm::dyn_cast<DeclRefExpr>(D)->getFoundDecl();
-                 llvm::errs() << "token var name : ";
                  fname=F->getNameAsString();
-                 llvm::errs() << fname<< "\n";
              }
          }    
          if ( iname.compare(0,edmhandle.size(),edmhandle) == 0 ) { 
-             llvm::errs() << edmhandle <<" type found\n";
              auto R = llvm::dyn_cast<DeclRefExpr>(I);
              auto D = R->getFoundDecl();
-             llvm::errs() << "handle var name : ";
              dname=D->getNameAsString();
-             llvm::errs() << dname<< "\n";
-             declstart = D->getBeginLoc();
-             declend = D->getEndLoc();
-             llvm::errs() << "template type: ";
+             declend = D->getLocation().getLocWithOffset(1);
              llvm::raw_string_ostream output(ttypename);
-             temptype->dump(output);
              output.str();
-             llvm::errs() <<ttypename<<"\n";
          }
       }
       diag(declend, "use function iEvent." + gethandle + "("+fname+") to initialize " + edmhandle +"<"+ttypename+">", DiagnosticIDs::Warning)
-       << FixItHint::CreateInsertion(declend," = iEvent."+gethandle+"("+fname+");");
+       << FixItHint::CreateInsertion(declend,StringRef(" = iEvent."+gethandle+"("+fname+")"));
       diag(callstart, "function " + getbytoken +"("+fname+", "+dname+") is deprecated and should be removed and replaced with "+ gethandle + "("+fname+") as shown above.", DiagnosticIDs::Warning)
-        << FixItHint::CreateRemoval(callrange);
+        << FixItHint::CreateReplacement(callrange, StringRef("//"));
     }
   }
 }
