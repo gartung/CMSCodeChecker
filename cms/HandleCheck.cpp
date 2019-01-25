@@ -26,23 +26,28 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Add callback implementation.
   std::string edmgettoken = "edm::EDGetTokenT";
   std::string getbytoken = "getByToken";
-  std::string tvname;
   std::string edmhandle = "edm::Handle";
   std::string gethandle = "getHandle";
+  std::string edmevent = "edm::Event";
 
-  const auto *MatchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("member");
-  if (MatchedCallExpr){
+  const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("member");
+  if (matchedCallExpr){
+    std::string tvname;
     std::string hvname;
     std::string ttypename;
     std::string dname;
     std::string fname;
-    SourceLocation declend;
-    auto MatchedDecl = MatchedCallExpr->getMethodDecl();
-    auto MatchedName = MatchedDecl->getNameAsString();
-    auto callstart = MatchedCallExpr->getLocStart();
-    auto callrange = MatchedCallExpr->getSourceRange();
-    if (MatchedName.compare(getbytoken) == 0) {
-      for (auto I: MatchedCallExpr->arguments()) {
+    SourceLocation declstart;
+    SourceRange declrange;
+    auto matchedDecl = matchedCallExpr->getMethodDecl();
+    auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
+    auto implicitObjectDecl = llvm::dyn_cast<DeclRefExpr>(implicitObjectExpr)->getFoundDecl();
+    auto ioname=implicitObjectDecl->getNameAsString();
+    auto matchedName = matchedDecl->getNameAsString();
+    auto callstart = matchedCallExpr->getLocStart();
+    auto callrange = matchedCallExpr->getSourceRange();
+    if (matchedName.compare(getbytoken) == 0) {
+      for (auto I: matchedCallExpr->arguments()) {
          auto qualtype = I->getType();
          auto type = llvm::dyn_cast<ElaboratedType>(qualtype)->desugar();
          auto temptype=llvm::dyn_cast<TemplateSpecializationType>(type)->getArgs();
@@ -58,13 +63,16 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              auto R = llvm::dyn_cast<DeclRefExpr>(I);
              auto D = R->getFoundDecl();
              dname=D->getNameAsString();
-             declend = D->getLocation().getLocWithOffset(1);
-             llvm::raw_string_ostream output(ttypename);
-             output.str();
+             declstart = D->getLocStart();
+             declrange = D->getSourceRange();
+             std::string buffer;
+             llvm::raw_string_ostream output(buffer);
+             temptype->dump(output);
+             ttypename=output.str();
          }
       }
-      diag(declend, "use function iEvent." + gethandle + "("+fname+") to initialize " + edmhandle +"<"+ttypename+">", DiagnosticIDs::Warning)
-       << FixItHint::CreateInsertion(declend,StringRef(" = iEvent."+gethandle+"("+fname+")"));
+      diag(declstart, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize " + edmhandle +"<"+ttypename+"> "+dname), DiagnosticIDs::Warning)
+       << FixItHint::CreateReplacement(declrange,StringRef(edmhandle +"<"+ttypename+"> "+dname+" = "+ioname+"."+gethandle+"("+fname+")"));
       diag(callstart, "function " + getbytoken +"("+fname+", "+dname+") is deprecated and should be removed and replaced with "+ gethandle + "("+fname+") as shown above.", DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef("//"));
     }

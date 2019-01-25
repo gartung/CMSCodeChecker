@@ -25,7 +25,7 @@ struct Foo {};
 
 void doWork( edm::Event& iEvent, edm::EDGetTokenT<Foo> const& token) {
   edm::Handle<Foo> h;
-// CHECK-MESSAGES: :[[@LINE-1]]:21: warning: use function iEvent.getHandle(token) to initialize edm::Handle<> [cms-handle]
+// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use function iEvent.getHandle(token) to initialize edm::Handle<Foo> h [cms-handle]
 // CHECK-FIXES: {{^}}  edm::Handle<Foo> h = iEvent.getHandle(token);{{$}}
   iEvent.getByToken(token, h);
 // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(token, h) is deprecated and should be removed and replaced with getHandle(token) as shown above. [cms-handle]
