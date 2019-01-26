@@ -19,7 +19,7 @@ namespace cms {
 
 void HandleCheck::registerMatchers(MatchFinder *Finder) {
   // FIXME: Add matchers.
-  Finder->addMatcher(cxxMemberCallExpr().bind("member"), this);
+  Finder->addMatcher(cxxMemberCallExpr(callee(cxxMethodDecl(hasName("getByToken")))).bind("member") , this);
 }
 
 void HandleCheck::check(const MatchFinder::MatchResult &Result) {
@@ -37,20 +37,22 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     std::string ttypename;
     std::string dname;
     std::string fname;
+    std::string ioname;
     SourceLocation declstart;
     SourceRange declrange;
     auto matchedDecl = matchedCallExpr->getMethodDecl();
-    auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
-    auto implicitObjectDecl = llvm::dyn_cast<DeclRefExpr>(implicitObjectExpr)->getFoundDecl();
-    auto ioname=implicitObjectDecl->getNameAsString();
     auto matchedName = matchedDecl->getNameAsString();
     auto callstart = matchedCallExpr->getLocStart();
     auto callrange = matchedCallExpr->getSourceRange();
     if (matchedName.compare(getbytoken) == 0) {
+      auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
+      auto implicitObjectDecl = llvm::dyn_cast<DeclRefExpr>(implicitObjectExpr)->getFoundDecl();
+      ioname=implicitObjectDecl->getNameAsString();
       for (auto I: matchedCallExpr->arguments()) {
          auto qualtype = I->getType();
-         auto type = llvm::dyn_cast<ElaboratedType>(qualtype)->desugar();
-         auto temptype=llvm::dyn_cast<TemplateSpecializationType>(type)->getArgs();
+         auto type = qualtype.getTypePtr();
+         auto tstype = type->getAs<TemplateSpecializationType>();
+         auto temptype = tstype->getArgs();
          auto iname = qualtype.getAsString();
 
          if ( iname.compare(0,edmgettoken.size(),edmgettoken) == 0 ) {
