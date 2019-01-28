@@ -17,21 +17,35 @@ namespace clang {
 namespace tidy {
 namespace cms {
 
+const std::string edmgettoken = "edm::EDGetTokenT";
+const std::string getbytoken = "getByToken";
+const std::string edmhandle = "Handle";
+const std::string gethandle = "getHandle";
+const std::string edmevent = "edm::Event";
+
+
+
 void HandleCheck::registerMatchers(MatchFinder *Finder) {
   // FIXME: Add matchers.
-  Finder->addMatcher(cxxMemberCallExpr(callee(cxxMethodDecl(hasName("getByToken")))).bind("member") , this);
+  Finder->addMatcher(cxxMemberCallExpr(
+                       callee(
+                         cxxMethodDecl(
+                           hasName(getbytoken),
+                           ofClass(
+                             hasName(edmevent))
+                         )
+                       ),
+                       argumentCountIs(2) //,
+                       //hasAnyArgument(declRefExpr()),
+                       //hasAnyArgument(cxxConstructExpr(hasAnyArgument(declRefExpr())))
+                     ).bind("cxxmembercallexpr"),this);
 }
 
 void HandleCheck::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Add callback implementation.
-  std::string edmgettoken = "edm::EDGetTokenT";
-  std::string getbytoken = "getByToken";
-  std::string edmhandle = "edm::Handle";
-  std::string gethandle = "getHandle";
-  std::string edmevent = "edm::Event";
-
-  const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("member");
+  const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("cxxmembercallexpr");
   if (matchedCallExpr){
+//    matchedCallExpr->dump();
     std::string tvname;
     std::string hvname;
     std::string ttypename;
@@ -61,7 +75,7 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
                  fname=F->getNameAsString();
              }
          }    
-         if ( iname.compare(0,edmhandle.size(),edmhandle) == 0 ) { 
+         if ( iname.find(edmhandle,0) != std::string::npos ) { 
              auto R = llvm::dyn_cast<DeclRefExpr>(I);
              auto D = R->getFoundDecl();
              dname=D->getNameAsString();
@@ -73,8 +87,8 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              ttypename=output.str();
          }
       }
-      diag(declstart, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize " + edmhandle +"<"+ttypename+"> "+dname), DiagnosticIDs::Warning)
-       << FixItHint::CreateReplacement(declrange,StringRef(edmhandle +"<"+ttypename+"> "+dname+" = "+ioname+"."+gethandle+"("+fname+")"));
+      diag(declstart, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize edm::" + edmhandle +"<"+ttypename+"> "+dname), DiagnosticIDs::Warning)
+       << FixItHint::CreateReplacement(declrange,StringRef("edm::"+edmhandle +"<"+ttypename+"> "+dname+" = "+ioname+"."+gethandle+"("+fname+")"));
       diag(callstart, "function " + getbytoken +"("+fname+", "+dname+") is deprecated and should be removed and replaced with "+ gethandle + "("+fname+") as shown above.", DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef("//"));
     }
