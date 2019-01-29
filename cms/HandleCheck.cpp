@@ -17,12 +17,12 @@ namespace clang {
 namespace tidy {
 namespace cms {
 
-const std::string edmgettoken = "edm::EDGetTokenT";
+const std::string edmgettoken = "EDGetTokenT";
 const std::string getbytoken = "getByToken";
 const std::string edmhandle = "Handle";
 const std::string gethandle = "getHandle";
 const std::string edmevent = "edm::Event";
-
+const std::string thisp = "this->";
 
 
 void HandleCheck::registerMatchers(MatchFinder *Finder) {
@@ -48,9 +48,12 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     //llvm::errs() <<"++++++++++++++++matchedcallexpr\n";
     //matchedCallExpr->dump();
     //llvm::errs() <<"\n";
+    clang::LangOptions LangOpts;
+    LangOpts.CPlusPlus = true;
+    clang::PrintingPolicy Policy(LangOpts);
     std::string tvname;
     std::string hvname;
-    std::string ttypename;
+    std::string ttemptype;
     std::string dname;
     std::string fname;
     std::string qname;
@@ -66,39 +69,21 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     ioname=implicitObjectDecl->getNameAsString();
     for (auto I: matchedCallExpr->arguments()) {
        auto qualtype = I->getType();
-       //llvm::errs()<<"++++++++++++++qualtype\n";
-       //qualtype->dump();
-       //llvm::errs()<<"\n";
-       //llvm::errs()<<"++++++++++++++type\n";
        auto type = qualtype.getTypePtr();
-       //type->dump();
-       //llvm::errs()<<"\n";
-       //llvm::errs()<<"++++++++++++++tstype\n";
        auto tstype = type->getAs<TemplateSpecializationType>();
-       //tstype->dump();
-       //llvm::errs()<<"\n";
-       //llvm::errs()<<"++++++++++++++temptype\n";
        auto temptype = tstype->getArgs();
-       //temptype->dump();
-       //llvm::errs()<<"\n";
-       //llvm::errs()<<"++++++++++++++iname\n";
+       std::string buffert;
+       llvm::raw_string_ostream outputt(buffert);
+       temptype->print(Policy,outputt);
+       ttemptype=outputt.str();
        auto iname = qualtype.getAsString();
-       //llvm::errs() << iname<<"\n";
        if ( iname.find(edmhandle,0) != std::string::npos ) { 
-           qname = qualtype.getAsString();
-           auto R = llvm::dyn_cast_or_null<DeclRefExpr>(I);
-           if (R) {
-             auto D = R->getDecl();
-             dname=D->getNameAsString();
-             declstart = D->getLocStart();
-             declrange = D->getSourceRange();
              std::string buffer;
              llvm::raw_string_ostream output(buffer);
-             temptype->dump(output);
-             ttypename=output.str();
-           }
+             I->printPretty(output,0,Policy);
+             qname=output.str();
        }
-       if ( iname.compare(0,edmgettoken.size(),edmgettoken) == 0 ) {
+       if ( iname.find(edmgettoken,0) != std::string::npos ) {
              clang::LangOptions LangOpts;
              LangOpts.CPlusPlus = true;
              clang::PrintingPolicy Policy(LangOpts);
@@ -106,13 +91,14 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              llvm::raw_string_ostream output(buffer);
              I->printPretty(output,0,Policy);
              fname=output.str();
-             //llvm::errs() <<"+++++++++++fname: "<< fname <<"\n";   
+             auto n = fname.find(thisp,0);
+             if (n != std::string::npos) {
+                 fname.erase(n,thisp.size());
+             }
        }    
     }
-      diag(declstart, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize edm::" + edmhandle +"<"+ttypename+"> "+dname), DiagnosticIDs::Warning)
-       << FixItHint::CreateReplacement(declrange,StringRef("edm::"+edmhandle +"<"+ttypename+"> "+dname+" = "+ioname+"."+gethandle+"("+fname+")"));
-      diag(callstart, StringRef("function " + getbytoken +"("+fname+", "+dname+") is deprecated and should be removed and replaced with "+ gethandle + "("+fname+") as shown above."), DiagnosticIDs::Warning)
-        << FixItHint::CreateReplacement(callrange, StringRef("//"));
+      diag(callstart, StringRef("function " + getbytoken +"("+getbytoken+"<"+ttemptype+">&, "+edmhandle+"<>&) is deprecated and should be replaced with "+ gethandle + "("+edmgettoken+"<>&) as shown."), DiagnosticIDs::Warning)
+        << FixItHint::CreateReplacement(callrange, StringRef(qname+" = "+ioname+"."+gethandle+"("+fname+")"));
   }
 }
 
