@@ -35,9 +35,9 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                              hasName(edmevent))
                          )
                        ),
-                       argumentCountIs(2) //,
-                       //hasAnyArgument(declRefExpr()),
-                       //hasAnyArgument(cxxConstructExpr(hasAnyArgument(declRefExpr())))
+                       argumentCountIs(2) ,
+                       hasAnyArgument(declRefExpr()),
+                       hasAnyArgument(cxxConstructExpr())
                      ).bind("cxxmembercallexpr"),this);
 }
 
@@ -45,12 +45,15 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Add callback implementation.
   const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("cxxmembercallexpr");
   if (matchedCallExpr){
-//    matchedCallExpr->dump();
+    //llvm::errs() <<"++++++++++++++++matchedcallexpr\n";
+    //matchedCallExpr->dump();
+    //llvm::errs() <<"\n";
     std::string tvname;
     std::string hvname;
     std::string ttypename;
     std::string dname;
     std::string fname;
+    std::string qname;
     std::string ioname;
     SourceLocation declstart;
     SourceRange declrange;
@@ -58,26 +61,34 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     auto matchedName = matchedDecl->getNameAsString();
     auto callstart = matchedCallExpr->getLocStart();
     auto callrange = matchedCallExpr->getSourceRange();
-    if (matchedName.compare(getbytoken) == 0) {
-      auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
-      auto implicitObjectDecl = llvm::dyn_cast<DeclRefExpr>(implicitObjectExpr)->getFoundDecl();
-      ioname=implicitObjectDecl->getNameAsString();
-      for (auto I: matchedCallExpr->arguments()) {
-         auto qualtype = I->getType();
-         auto type = qualtype.getTypePtr();
-         auto tstype = type->getAs<TemplateSpecializationType>();
-         auto temptype = tstype->getArgs();
-         auto iname = qualtype.getAsString();
-
-         if ( iname.compare(0,edmgettoken.size(),edmgettoken) == 0 ) {
-             for (auto D: llvm::dyn_cast<CXXConstructExpr>(I)->arguments()) {
-                 auto F=llvm::dyn_cast<DeclRefExpr>(D)->getFoundDecl();
-                 fname=F->getNameAsString();
-             }
-         }    
-         if ( iname.find(edmhandle,0) != std::string::npos ) { 
-             auto R = llvm::dyn_cast<DeclRefExpr>(I);
-             auto D = R->getFoundDecl();
+    auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
+    auto implicitObjectDecl = llvm::dyn_cast<DeclRefExpr>(implicitObjectExpr)->getFoundDecl();
+    ioname=implicitObjectDecl->getNameAsString();
+    for (auto I: matchedCallExpr->arguments()) {
+       auto qualtype = I->getType();
+       //llvm::errs()<<"++++++++++++++qualtype\n";
+       //qualtype->dump();
+       //llvm::errs()<<"\n";
+       //llvm::errs()<<"++++++++++++++type\n";
+       auto type = qualtype.getTypePtr();
+       //type->dump();
+       //llvm::errs()<<"\n";
+       //llvm::errs()<<"++++++++++++++tstype\n";
+       auto tstype = type->getAs<TemplateSpecializationType>();
+       //tstype->dump();
+       //llvm::errs()<<"\n";
+       //llvm::errs()<<"++++++++++++++temptype\n";
+       auto temptype = tstype->getArgs();
+       //temptype->dump();
+       //llvm::errs()<<"\n";
+       //llvm::errs()<<"++++++++++++++iname\n";
+       auto iname = qualtype.getAsString();
+       //llvm::errs() << iname<<"\n";
+       if ( iname.find(edmhandle,0) != std::string::npos ) { 
+           qname = qualtype.getAsString();
+           auto R = llvm::dyn_cast_or_null<DeclRefExpr>(I);
+           if (R) {
+             auto D = R->getDecl();
              dname=D->getNameAsString();
              declstart = D->getLocStart();
              declrange = D->getSourceRange();
@@ -85,13 +96,23 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              llvm::raw_string_ostream output(buffer);
              temptype->dump(output);
              ttypename=output.str();
-         }
-      }
+           }
+       }
+       if ( iname.compare(0,edmgettoken.size(),edmgettoken) == 0 ) {
+             clang::LangOptions LangOpts;
+             LangOpts.CPlusPlus = true;
+             clang::PrintingPolicy Policy(LangOpts);
+             std::string buffer;
+             llvm::raw_string_ostream output(buffer);
+             I->printPretty(output,0,Policy);
+             fname=output.str();
+             //llvm::errs() <<"+++++++++++fname: "<< fname <<"\n";   
+       }    
+    }
       diag(declstart, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize edm::" + edmhandle +"<"+ttypename+"> "+dname), DiagnosticIDs::Warning)
        << FixItHint::CreateReplacement(declrange,StringRef("edm::"+edmhandle +"<"+ttypename+"> "+dname+" = "+ioname+"."+gethandle+"("+fname+")"));
-      diag(callstart, "function " + getbytoken +"("+fname+", "+dname+") is deprecated and should be removed and replaced with "+ gethandle + "("+fname+") as shown above.", DiagnosticIDs::Warning)
+      diag(callstart, StringRef("function " + getbytoken +"("+fname+", "+dname+") is deprecated and should be removed and replaced with "+ gethandle + "("+fname+") as shown above."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef("//"));
-    }
   }
 }
 

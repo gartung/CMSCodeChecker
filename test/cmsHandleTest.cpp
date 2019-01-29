@@ -33,13 +33,23 @@ void doWork( edm::Event& iEvent, edm::EDGetTokenT<Foo> const& token) {
 }
 
 void doWork2( edm::Event& iEvent, edm::EDGetTokenT<Foo> const& token) {
-  edm::Handle<Foo> h;
   using namespace edm;
-  Handle<Foo> h2;
-// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use function iEvent.getHandle(token) to initialize edm::Handle<Foo> h2 [cms-handle]
-// CHECK-FIXES: {{^}}  edm::Handle<Foo> h2 = iEvent.getHandle(token);{{$}}
-  iEvent.getByToken(token, h2);
-// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(token, h2) is deprecated and should be removed and replaced with getHandle(token) as shown above. [cms-handle]
+  Handle<Foo> h;
+// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use function iEvent.getHandle(token) to initialize edm::Handle<Foo> h [cms-handle]
+// CHECK-FIXES: {{^}}  edm::Handle<Foo> h = iEvent.getHandle(token);{{$}}
+  iEvent.getByToken(token, h);
+// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(token, h) is deprecated and should be removed and replaced with getHandle(token) as shown above. [cms-handle]
+// CHECK-FIXES: {{^}}  //;{{$}}
+  Foo const& f = *h;
+}
+
+void doWork3( edm::Event& iEvent, edm::EDGetTokenT<Foo> const * ptoken) {
+  using namespace edm;
+  Handle<Foo> h;
+// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use function iEvent.getHandle(*ptoken) to initialize edm::Handle<Foo> h [cms-handle]
+// CHECK-FIXES: {{^}}  edm::Handle<Foo> h = iEvent.getHandle(*ptoken);{{$}}
+  iEvent.getByToken(*ptoken, h);
+// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(*ptoken, h) is deprecated and should be removed and replaced with getHandle(*ptoken) as shown above. [cms-handle]
 // CHECK-FIXES: {{^}}  //;{{$}}
   Foo const& f = *h;
 }
