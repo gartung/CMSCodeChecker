@@ -64,8 +64,11 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     auto matchedName = matchedDecl->getNameAsString();
     auto callstart = matchedCallExpr->getLocStart();
     auto callrange = matchedCallExpr->getSourceRange();
-    auto implicitObjectDecl = matchedCallExpr->getRecordDecl();
-    ioname=implicitObjectDecl->getNameAsString();
+    auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
+    std::string bufferi;
+    llvm::raw_string_ostream outputi(bufferi);
+    implicitObjectExpr->printPretty(outputi,0,Policy);
+    ioname=outputi.str();
     for (auto I: matchedCallExpr->arguments()) {
        auto qualtype = I->getType();
        auto type = qualtype.getTypePtr();
