@@ -64,8 +64,7 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     auto matchedName = matchedDecl->getNameAsString();
     auto callstart = matchedCallExpr->getLocStart();
     auto callrange = matchedCallExpr->getSourceRange();
-    auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
-    auto implicitObjectDecl = llvm::dyn_cast<DeclRefExpr>(implicitObjectExpr)->getFoundDecl();
+    auto implicitObjectDecl = matchedCallExpr->getRecordDecl();
     ioname=implicitObjectDecl->getNameAsString();
     for (auto I: matchedCallExpr->arguments()) {
        auto qualtype = I->getType();
@@ -97,7 +96,7 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              }
        }    
     }
-      diag(callstart, StringRef("function " + getbytoken +"("+getbytoken+"<"+ttemptype+">&, "+edmhandle+"<>&) is deprecated and should be replaced with "+ gethandle + "("+edmgettoken+"<>&) as shown."), DiagnosticIDs::Warning)
+      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<>&, "+edmhandle+"<>&) is deprecated and should be replaced with "+ gethandle + "("+edmgettoken+"<>&) as shown."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(qname+" = "+ioname+"."+gethandle+"("+fname+")"));
   }
 }

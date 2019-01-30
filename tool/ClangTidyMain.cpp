@@ -574,11 +574,6 @@ extern volatile int CMSModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED CMSAnchorDestination =
     CMSModuleAnchorSource;
 
-// This anchor is used to force the linker to link the ReportingModule.
-extern volatile int ReportingModuleAnchorSource;
-static int LLVM_ATTRIBUTE_UNUSED ReportingModuleAnchorDestination =
-    ReportingModuleAnchorSource; 
-
 } // namespace tidy
 } // namespace clang
 

@@ -12,7 +12,6 @@ endif()
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(CMSCodeChecker)
 
-
   # find clang + llvm
   find_package(Clang REQUIRED)
 
@@ -43,17 +42,8 @@ add_subdirectory(tool)
 
 # the specific cms checker code
 add_subdirectory(cms)
-# the specific reporting tools code
-add_subdirectory(reporting)
-
-# plugin
-add_subdirectory(plugin)
 
 # for testing
 add_subdirectory(test)
-
-# some extra utilities
-add_subdirectory(utility)
-
 
 endif()

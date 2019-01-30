@@ -1,6 +1,6 @@
 set(LLVM_LINK_COMPONENTS support)
 
-add_clang_library(clangTidyCMSModule
+add_clang_library(clangTidyCMSModule SHARED
   CMSTidyModule.cpp
   HandleCheck.cpp
 
@@ -13,3 +13,4 @@ add_clang_library(clangTidyCMSModule
   clangTidyUtils
   clangTooling
   )
+
