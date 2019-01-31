@@ -26,33 +26,38 @@ const std::string thisp = "this->";
 
 
 void HandleCheck::registerMatchers(MatchFinder *Finder) {
-  auto edmGetTokenT = namedDecl(hasName("edm::EDGetTokenT"));
-  auto edmHandle = namedDecl(hasName("edm::Handle"));
-  auto edmEvent = namedDecl(hasName("edm::Event"));
-  Finder->addMatcher(cxxMemberCallExpr(
-                       callee(
-                         cxxMethodDecl(
-                           hasName(getbytoken),
-                           ofClass(
-                             hasName(edmevent))
-                         )
-                       ),
-                       argumentCountIs(2) ,
-                       hasAnyArgument(declRefExpr()),
-                       hasAnyArgument(cxxConstructExpr())
-                     ).bind("cxxmembercallexpr"),this);
+  auto edmGetTokenT = cxxRecordDecl(hasName("edm::EDGetTokenT"));
+  auto edmHandle = cxxRecordDecl(hasName("edm::Handle"));
+  auto edmEvent = cxxRecordDecl(hasName("edm::Event"));
   auto edmHandleVarRef = declRefExpr(
                            hasDeclaration(varDecl()),
                            hasType(edmHandle));
+  auto edmGetTokenTRef = declRefExpr(
+                           hasDeclaration(varDecl()),
+                           hasType(edmGetTokenT));
+  auto edmEventRef = declRefExpr(
+                       hasDeclaration(varDecl()),
+                       hasType(edmEvent));
   auto edmHandleVarInit = varDecl(
                             hasInitializer(
                               cxxOperatorCallExpr(hasAnyArgument(edmHandleVarRef),
                                                   hasOverloadedOperatorName("*"))));
-  Finder->addMatcher(edmHandleVarInit.bind("handlevarinit"),this);
+  auto getByTokenDecl = cxxMethodDecl(
+                           hasName(getbytoken),
+                           ofClass(
+                             hasName(edmevent))
+                         );
+  auto getByTokenCall = cxxMemberCallExpr(
+                          callee(getByTokenDecl),
+                          argumentCountIs(2),
+                          hasAnyArgument(edmHandleVarRef),
+                          hasAnyArgument(cxxConstructExpr())
+                     );
+  Finder->addMatcher(getByTokenCall.bind("getbytokencallexpr"),this);
 }
 
 void HandleCheck::check(const MatchFinder::MatchResult &Result) {
-  const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("cxxmembercallexpr");
+  const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexpr");
   if (matchedCallExpr){
     //llvm::errs() <<"++++++++++++++++matchedcallexpr\n";
     //matchedCallExpr->dump();
@@ -88,7 +93,11 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
        temptype->print(Policy,outputt);
        ttemptype=outputt.str();
        auto iname = qualtype.getAsString();
-       if ( iname.find(edmhandle,0) != std::string::npos ) { 
+       if ( iname.find(edmhandle,0) != std::string::npos ) {
+             auto R = llvm::dyn_cast<DeclRefExpr>(I);
+             auto D = R->getDecl();
+             declstart = D->getLocStart();
+             declrange = D->getSourceRange();
              std::string buffer;
              llvm::raw_string_ostream output(buffer);
              I->printPretty(output,0,Policy);
@@ -108,16 +117,11 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              }
        }    
     }
+      diag(declstart, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize edm::" + edmhandle +"<"+ttemptype+"> "+dname), DiagnosticIDs::Warning)
+       << FixItHint::CreateInsertion(declstart,StringRef("//commented out by CMS clang-tidy getHandle rewriter "));
       diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced with "+ gethandle + "("+edmgettoken+"<"+ttemptype+">&) as shown."), DiagnosticIDs::Warning)
-        << FixItHint::CreateReplacement(callrange, StringRef(qname+" = "+ioname+"."+gethandle+"("+fname+")"));
-  }
-  const auto *matchedVarInit = Result.Nodes.getNodeAs<VarDecl>("handlevarinit");
-  if (matchedVarInit) {
-    //llvm::errs() <<"++++++++++++++++matched+var+decl+init+handle+type\n";
-    //matchedVarInit->dump();
-    //llvm::errs() <<"\n";
-    diag(matchedVarInit->getInit()->getLocStart(), StringRef("const& T var = *edm::Handle<T> type variable and variable is initialized by edm::Event type variable .getByToken(edm::EDGetTokenT<T>; edm::Handle<T>) can be replaced with const& T var = edm::Event type variable .get(edm::EDGetToken<T>);"), DiagnosticIDs::Warning) << FixItHint::CreateReplacement(matchedVarInit->getInit()->getSourceRange(),StringRef("iEvent.get(edm::EDGetTokenT<T>)"));
-   }
+        << FixItHint::CreateReplacement(callrange, StringRef("auto "+qname+" = "+ioname+"."+gethandle+"("+fname+")"));
+    }
 }
 
 } // namespace cms
