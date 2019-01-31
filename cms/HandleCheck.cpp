@@ -41,24 +41,17 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                        hasAnyArgument(declRefExpr()),
                        hasAnyArgument(cxxConstructExpr())
                      ).bind("cxxmembercallexpr"),this);
-  Finder->addMatcher(declRefExpr(hasDeclaration(varDecl()),hasType(edmHandle)).bind("varexprhandle"),this);
-  Finder->addMatcher(declRefExpr(hasDeclaration(fieldDecl()),hasType(edmHandle)).bind("memexprhandle"),this);
+  auto edmHandleVarRef = declRefExpr(
+                           hasDeclaration(varDecl()),
+                           hasType(edmHandle));
+  auto edmHandleVarInit = varDecl(
+                            hasInitializer(
+                              cxxOperatorCallExpr(hasAnyArgument(edmHandleVarRef),
+                                                  hasOverloadedOperatorName("*"))));
+  Finder->addMatcher(edmHandleVarInit.bind("handlevarinit"),this);
 }
 
 void HandleCheck::check(const MatchFinder::MatchResult &Result) {
-  // FIXME: Add callback implementation.
-  const auto *matchedRefExprVar = Result.Nodes.getNodeAs<DeclRefExpr>("varexprhandle");
-  if (matchedRefExprVar) {
-    llvm::errs() <<"++++++++++++++++matched+mem+expr+handle\n";
-    matchedRefExprVar->getFoundDecl()->dump();
-    llvm::errs() <<"\n";
-   }
-  const auto *matchedRefExprMem = Result.Nodes.getNodeAs<DeclRefExpr>("memexprhandle");
-  if (matchedRefExprMem) {
-    llvm::errs() <<"++++++++++++++++matched+var+expr+handle\n";
-    matchedRefExprMem->getFoundDecl()->dump();
-    llvm::errs() <<"\n";
-   } 
   const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("cxxmembercallexpr");
   if (matchedCallExpr){
     //llvm::errs() <<"++++++++++++++++matchedcallexpr\n";
@@ -118,6 +111,13 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
       diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced with "+ gethandle + "("+edmgettoken+"<"+ttemptype+">&) as shown."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(qname+" = "+ioname+"."+gethandle+"("+fname+")"));
   }
+  const auto *matchedVarInit = Result.Nodes.getNodeAs<VarDecl>("handlevarinit");
+  if (matchedVarInit) {
+    //llvm::errs() <<"++++++++++++++++matched+var+decl+init+handle+type\n";
+    //matchedVarInit->dump();
+    //llvm::errs() <<"\n";
+    diag(matchedVarInit->getInit()->getLocStart(), StringRef("const& T var = *edm::Handle<T> type variable and variable is initialized by edm::Event type variable .getByToken(edm::EDGetTokenT<T>; edm::Handle<T>) can be replaced with const& T var = edm::Event type variable .get(edm::EDGetToken<T>);"), DiagnosticIDs::Warning) << FixItHint::CreateReplacement(matchedVarInit->getInit()->getSourceRange(),StringRef("iEvent.get(edm::EDGetTokenT<T>)"));
+   }
 }
 
 } // namespace cms
