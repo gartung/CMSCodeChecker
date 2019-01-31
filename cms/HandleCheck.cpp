@@ -26,7 +26,9 @@ const std::string thisp = "this->";
 
 
 void HandleCheck::registerMatchers(MatchFinder *Finder) {
-  // FIXME: Add matchers.
+  auto edmGetTokenT = namedDecl(hasName("edm::EDGetTokenT"));
+  auto edmHandle = namedDecl(hasName("edm::Handle"));
+  auto edmEvent = namedDecl(hasName("edm::Event"));
   Finder->addMatcher(cxxMemberCallExpr(
                        callee(
                          cxxMethodDecl(
@@ -39,10 +41,24 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                        hasAnyArgument(declRefExpr()),
                        hasAnyArgument(cxxConstructExpr())
                      ).bind("cxxmembercallexpr"),this);
+  Finder->addMatcher(declRefExpr(hasDeclaration(varDecl()),hasType(edmHandle)).bind("varexprhandle"),this);
+  Finder->addMatcher(declRefExpr(hasDeclaration(fieldDecl()),hasType(edmHandle)).bind("memexprhandle"),this);
 }
 
 void HandleCheck::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Add callback implementation.
+  const auto *matchedRefExprVar = Result.Nodes.getNodeAs<DeclRefExpr>("varexprhandle");
+  if (matchedRefExprVar) {
+    llvm::errs() <<"++++++++++++++++matched+mem+expr+handle\n";
+    matchedRefExprVar->getFoundDecl()->dump();
+    llvm::errs() <<"\n";
+   }
+  const auto *matchedRefExprMem = Result.Nodes.getNodeAs<DeclRefExpr>("memexprhandle");
+  if (matchedRefExprMem) {
+    llvm::errs() <<"++++++++++++++++matched+var+expr+handle\n";
+    matchedRefExprMem->getFoundDecl()->dump();
+    llvm::errs() <<"\n";
+   } 
   const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("cxxmembercallexpr");
   if (matchedCallExpr){
     //llvm::errs() <<"++++++++++++++++matchedcallexpr\n";
@@ -99,7 +115,7 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              }
        }    
     }
-      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<>&, "+edmhandle+"<>&) is deprecated and should be replaced with "+ gethandle + "("+edmgettoken+"<>&) as shown."), DiagnosticIDs::Warning)
+      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced with "+ gethandle + "("+edmgettoken+"<"+ttemptype+">&) as shown."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(qname+" = "+ioname+"."+gethandle+"("+fname+")"));
   }
 }
