@@ -25,6 +25,7 @@ public:
   HandleCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
+  void report(CXXMemberCallExpr const * matchedCallExpr, std::string const& type);
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };
 
