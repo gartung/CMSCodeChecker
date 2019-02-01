@@ -26,11 +26,10 @@ struct Foo {};
 
 void doWork( edm::Event& iEvent, edm::EDGetTokenT<Foo> const& token) {
   edm::Handle<Foo> h;
-// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use function iEvent.getHandle(token) to initialize edm::Handle<Foo> [cms-handle]
-// CHECK-FIXES: {{^}}  //commented out by CMS clang-tidy getHandle rewriter edm::Handle<Foo> h;{{$}}
+// CHECK-MESSAGES: :[[@LINE-1]]:21: warning: use function iEvent.getHandle(token) to initialize variable h [cms-handle]
+// CHECK-FIXES: {{^}}  edm::Handle<Foo> h = iEvent.getHandle(token);{{$}}
   iEvent.getByToken(token, h);
-// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(EDGetTokenT<Foo>&, Handle<Foo>&) is deprecated and should be replaced with getHandle(EDGetTokenT<Foo>&) as shown. [cms-handle]
-// CHECK-FIXES: {{^}}  auto h = iEvent.getHandle(token);{{$}}
+// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(EDGetTokenT<Foo>&, Handle<Foo>&) is deprecated and should be removed here and replaced with getHandle(token) to inialize variable h. [cms-handle]
   Foo const& f = *h;
 
 }
@@ -38,20 +37,15 @@ void doWork( edm::Event& iEvent, edm::EDGetTokenT<Foo> const& token) {
 void doWork2( edm::Event& iEvent, edm::EDGetTokenT<Foo> const& token) {
   using namespace edm;
   Handle<Foo> h;
-// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use function iEvent.getHandle(token) to initialize edm::Handle<Foo> [cms-handle]
-// CHECK-FIXES: {{^}}  //commented out by CMS clang-tidy getHandle rewriter Handle<Foo> h;{{$}}
+// CHECK-MESSAGES: :[[@LINE-1]]:16: warning: use function iEvent.getHandle(token) to initialize variable h [cms-handle]
+// CHECK-FIXES: {{^}}  Handle<Foo> h = iEvent.getHandle(token);{{$}}
   iEvent.getByToken(token, h);
-// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(EDGetTokenT<Foo>&, Handle<Foo>&) is deprecated and should be replaced with getHandle(EDGetTokenT<Foo>&) as shown. [cms-handle]
-// CHECK-FIXES: {{^}}  auto h = iEvent.getHandle(token);{{$}}
+// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(EDGetTokenT<Foo>&, Handle<Foo>&) is deprecated and should be removed here and replaced with getHandle(token) to inialize variable h. [cms-handle]
   Foo const& f = *h;
 }
 
 void doWork3( edm::Event& iEvent, edm::EDGetTokenT<Foo> const * ptoken) {
   edm::Handle<Foo> h;
-// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use function iEvent.getHandle(*ptoken) to initialize edm::Handle<Foo> [cms-handle]
-// CHECK-FIXES: {{^}}  //commented out by CMS clang-tidy getHandle rewriter edm::Handle<Foo> h;{{$}}
   iEvent.getByToken(*ptoken, h);
-// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: function getByToken(EDGetTokenT<Foo>&, Handle<Foo>&) is deprecated and should be replaced wit
-// CHECK-FIXES: {{^}}  auto h = iEvent.getHandle(*ptoken);{{$}}
   // no match because token is not pass in directly by ref.
 }

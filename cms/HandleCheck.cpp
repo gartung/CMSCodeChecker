@@ -51,7 +51,7 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                           callee(getByTokenDecl),
                           argumentCountIs(2),
                           hasAnyArgument(edmHandleVarRef),
-                          hasAnyArgument(cxxConstructExpr())
+                          hasAnyArgument(cxxConstructExpr(has(edmGetTokenTRef)))
                      );
   Finder->addMatcher(getByTokenCall.bind("getbytokencallexpr"),this);
 }
@@ -73,11 +73,13 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     std::string qname;
     std::string ioname;
     SourceLocation declstart;
+    SourceLocation declend;
     SourceRange declrange;
     auto matchedDecl = matchedCallExpr->getMethodDecl();
     auto matchedName = matchedDecl->getNameAsString();
     auto callstart = matchedCallExpr->getLocStart();
-    auto callrange = matchedCallExpr->getSourceRange();
+    auto callend = matchedCallExpr->getLocEnd().getLocWithOffset(1);
+    auto callrange = SourceRange(callstart,callend);
     auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
     std::string bufferi;
     llvm::raw_string_ostream outputi(bufferi);
@@ -96,7 +98,9 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
        if ( iname.find(edmhandle,0) != std::string::npos ) {
              auto R = llvm::dyn_cast<DeclRefExpr>(I);
              auto D = R->getDecl();
+             dname = D->getNameAsString();
              declstart = D->getLocStart();
+             declend = D->getLocEnd().getLocWithOffset(1);
              declrange = D->getSourceRange();
              std::string buffer;
              llvm::raw_string_ostream output(buffer);
@@ -117,10 +121,10 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              }
        }    
     }
-      diag(declstart, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize edm::" + edmhandle +"<"+ttemptype+"> "+dname), DiagnosticIDs::Warning)
-       << FixItHint::CreateInsertion(declstart,StringRef("//commented out by CMS clang-tidy getHandle rewriter "));
-      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced with "+ gethandle + "("+edmgettoken+"<"+ttemptype+">&) as shown."), DiagnosticIDs::Warning)
-        << FixItHint::CreateReplacement(callrange, StringRef("auto "+qname+" = "+ioname+"."+gethandle+"("+fname+")"));
+      diag(declend, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize variable "+dname), DiagnosticIDs::Warning)
+       << FixItHint::CreateInsertion(declend,StringRef(" = "+ioname+"."+gethandle+"("+fname+")"));
+      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be removed here and replaced with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
+        << FixItHint::CreateReplacement(callrange, StringRef(""));
     }
 }
 
