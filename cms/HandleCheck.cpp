@@ -50,8 +50,8 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
   auto getByTokenCall = cxxMemberCallExpr(
                           callee(getByTokenDecl),
                           argumentCountIs(2),
-                          hasAnyArgument(edmHandleVarRef),
-                          hasAnyArgument(cxxConstructExpr(has(edmGetTokenTRef)))
+                          hasAnyArgument(declRefExpr()),
+                          hasAnyArgument(cxxConstructExpr())
                      );
   Finder->addMatcher(getByTokenCall.bind("getbytokencallexpr"),this);
 }
@@ -78,7 +78,7 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
     auto matchedDecl = matchedCallExpr->getMethodDecl();
     auto matchedName = matchedDecl->getNameAsString();
     auto callstart = matchedCallExpr->getLocStart();
-    auto callend = matchedCallExpr->getLocEnd().getLocWithOffset(1);
+    auto callend = matchedCallExpr->getEndLoc().getLocWithOffset(1);
     auto callrange = SourceRange(callstart,callend);
     auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
     std::string bufferi;
@@ -99,8 +99,7 @@ void HandleCheck::check(const MatchFinder::MatchResult &Result) {
              auto R = llvm::dyn_cast<DeclRefExpr>(I);
              auto D = R->getDecl();
              dname = D->getNameAsString();
-             declstart = D->getLocStart();
-             declend = D->getLocEnd().getLocWithOffset(1);
+             declend = D->getEndLoc().getLocWithOffset(dname.size());
              declrange = D->getSourceRange();
              std::string buffer;
              llvm::raw_string_ostream output(buffer);
