@@ -88,8 +88,7 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, std::string 
     auto matchedDecl = matchedCallExpr->getMethodDecl();
     auto matchedName = matchedDecl->getNameAsString();
     auto callstart = matchedCallExpr->getLocStart();
-    auto callend = matchedCallExpr->getEndLoc().getLocWithOffset(1);
-    auto callrange = SourceRange(callstart,callend);
+    auto callend = matchedCallExpr->getEndLoc();
     auto implicitObjectExpr = matchedCallExpr->getImplicitObjectArgument();
     std::string bufferi;
     llvm::raw_string_ostream outputi(bufferi);
@@ -137,11 +136,13 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, std::string 
      << FixItHint::CreateInsertion(declend,StringRef(insertion));
 
 
+      auto callrange = SourceRange(callstart,callend.getLocWithOffset(1));
       replacement = "";
       diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be removed here and replaced with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(replacement));
     } else 
     if (type == "nested") {
+      auto callrange = SourceRange(callstart,callend);
       replacement = dname+" = "+ioname+"."+gethandle + "("+fname+")";
       diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(replacement));
