@@ -24,7 +24,6 @@ const std::string gethandle = "getHandle";
 const std::string edmevent = "edm::Event";
 const std::string thisp = "this->";
 
-
 void HandleCheck::registerMatchers(MatchFinder *Finder) {
   auto edmGetTokenT = cxxRecordDecl(hasName("edm::EDGetTokenT"));
   auto edmHandle = cxxRecordDecl(hasName("edm::Handle"));
@@ -55,17 +54,29 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                           hasAnyArgument(cxxConstructExpr())
                      );
   auto getByTokenCallNested = cxxMemberCallExpr(
-                          unless(hasParent(compoundStmt(hasParent(functionDecl())))),
+                          unless(eachOf(hasParent(compoundStmt(hasParent(functionDecl()))),
+                                        hasParent(ifStmt()),
+                                        hasParent(unaryOperator(hasParent(ifStmt()))))),
                           callee(getByTokenDecl),
                           argumentCountIs(2),
                           hasAnyArgument(declRefExpr()),
                           hasAnyArgument(cxxConstructExpr())
                      );
+  auto getByTokenCallIfPar = cxxMemberCallExpr(
+                          eachOf(hasParent(ifStmt()),hasParent(unaryOperator(hasParent(ifStmt())))),
+                          callee(getByTokenDecl),
+                          argumentCountIs(2),
+                          hasAnyArgument(declRefExpr()),
+                          hasAnyArgument(cxxConstructExpr())
+                     );
+
+
   Finder->addMatcher(getByTokenCall.bind("getbytokencallexpr"),this);
   Finder->addMatcher(getByTokenCallNested.bind("getbytokencallexprnested"),this);
+  Finder->addMatcher(getByTokenCallIfPar.bind("getbytokencallexprifpar"),this);
 }
 
-void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, std::string const& type) {
+void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct) {
   if (matchedCallExpr){
     //llvm::errs() <<"++++++++++++++++matchedcallexpr "+type+"\n";
     //matchedCallExpr->dump();
@@ -129,7 +140,22 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, std::string 
              }
        }    
     }
-    if ( type == "direct") {    
+    switch (ct) {
+      case ifpar: {
+      auto callrange = SourceRange(callstart,callend);
+      replacement = "("+dname+" = "+ioname+"."+gethandle + "("+fname+"))";
+      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
+        << FixItHint::CreateReplacement(callrange, StringRef(replacement));
+      break;};
+
+      case nested: {
+      auto callrange = SourceRange(callstart,callend);
+      replacement = dname+" = "+ioname+"."+gethandle + "("+fname+")";
+      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
+        << FixItHint::CreateReplacement(callrange, StringRef(replacement));
+      break;}; 
+
+      case direct : {    
       insertion = " = "+ioname+"."+gethandle+"("+fname+")";
 
       diag(declend, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize variable "+dname), DiagnosticIDs::Warning)
@@ -140,22 +166,18 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, std::string 
       replacement = "";
       diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be removed here and replaced with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(replacement));
-    } else 
-    if (type == "nested") {
-      auto callrange = SourceRange(callstart,callend);
-      replacement = dname+" = "+ioname+"."+gethandle + "("+fname+")";
-      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
-        << FixItHint::CreateReplacement(callrange, StringRef(replacement));
+      break;};
     }
   }
 }
 
 void HandleCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexpr")) {
-      report(matchedCallExpr,"direct");}
-  else
+      report(matchedCallExpr,direct);}
   if (const auto *matchedCallExprNested = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprnested")){
-  report(matchedCallExprNested,"nested");}
+  report(matchedCallExprNested,nested);}
+  if (const auto *matchedCallExprIfPar = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprifpar")){
+  report(matchedCallExprIfPar,ifpar);}
 }
 
 
