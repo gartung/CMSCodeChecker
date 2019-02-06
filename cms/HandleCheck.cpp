@@ -47,26 +47,35 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                              hasName(edmevent))
                          );
   auto getByTokenCall = cxxMemberCallExpr(
-                          hasParent(compoundStmt(hasParent(functionDecl()))),
                           callee(getByTokenDecl),
                           argumentCountIs(2),
-                          hasAnyArgument(declRefExpr()),
+                          anyOf(
+                            hasAnyArgument(declRefExpr()),
+                            hasAnyArgument(memberExpr())),
                           hasAnyArgument(cxxConstructExpr())
                      );
   auto getByTokenCallNested = cxxMemberCallExpr(
-                          unless(eachOf(hasParent(compoundStmt(hasParent(functionDecl()))),
-                                        hasParent(ifStmt()),
-                                        hasParent(unaryOperator(hasParent(ifStmt()))))),
+                          unless(hasParent(ifStmt())),
+                          unless(hasParent(unaryOperator(hasParent(ifStmt())))),
+                          unless(hasParent(varDecl())),
+                          unless(hasParent(returnStmt())),
                           callee(getByTokenDecl),
                           argumentCountIs(2),
-                          hasAnyArgument(declRefExpr()),
+                          anyOf(
+                            hasAnyArgument(declRefExpr()),
+                            hasAnyArgument(memberExpr())),
                           hasAnyArgument(cxxConstructExpr())
                      );
   auto getByTokenCallIfPar = cxxMemberCallExpr(
-                          eachOf(hasParent(ifStmt()),hasParent(unaryOperator(hasParent(ifStmt())))),
+                          anyOf(hasParent(ifStmt()),
+                                hasParent(unaryOperator(hasParent(ifStmt()))),
+                                hasParent(varDecl()),
+                                hasParent(returnStmt())),
                           callee(getByTokenDecl),
                           argumentCountIs(2),
-                          hasAnyArgument(declRefExpr()),
+                          anyOf(
+                            hasAnyArgument(declRefExpr()),
+                            hasAnyArgument(memberExpr())),
                           hasAnyArgument(cxxConstructExpr())
                      );
 
@@ -115,8 +124,8 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
        temptype->print(Policy,outputt);
        ttemptype=outputt.str();
        auto iname = qualtype.getAsString();
-       if ( iname.find(edmhandle,0) != std::string::npos ) {
-             auto R = llvm::dyn_cast<DeclRefExpr>(I);
+       if (iname.find(edmhandle,0) != std::string::npos) {
+          if (const auto * R = llvm::dyn_cast<DeclRefExpr>(I)) {
              auto D = R->getDecl();
              dname = D->getNameAsString();
              declend = D->getEndLoc().getLocWithOffset(dname.size());
@@ -125,6 +134,17 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
              llvm::raw_string_ostream output(buffer);
              I->printPretty(output,0,Policy);
              qname=output.str();
+          }
+          else if ( const auto * R = llvm::dyn_cast<MemberExpr>(I)) {
+             auto D = R->getMemberDecl();
+             dname = D->getNameAsString();
+             declend = D->getEndLoc().getLocWithOffset(dname.size());
+             declrange = D->getSourceRange();
+             std::string buffer;
+             llvm::raw_string_ostream output(buffer);
+             I->printPretty(output,0,Policy);
+             qname=output.str();
+          }
        }
        if ( iname.find(edmgettoken,0) != std::string::npos ) {
              clang::LangOptions LangOpts;
@@ -144,28 +164,19 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
       case ifpar: {
       auto callrange = SourceRange(callstart,callend);
       replacement = "("+dname+" = "+ioname+"."+gethandle + "("+fname+"))";
-      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
+      diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with ("+dname+" = "+ioname+"." + gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(replacement));
       break;};
 
       case nested: {
       auto callrange = SourceRange(callstart,callend);
       replacement = dname+" = "+ioname+"."+gethandle + "("+fname+")";
-      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
+      diag(callstart, StringRef("direct call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ dname + " = "+ioname+"." + gethandle + "("+fname+")."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(replacement));
       break;}; 
 
       case direct : {    
-      insertion = " = "+ioname+"."+gethandle+"("+fname+")";
-
-      diag(declend, StringRef("use function "+ioname+"." + gethandle + "("+fname+") to initialize variable "+dname), DiagnosticIDs::Warning)
-     << FixItHint::CreateInsertion(declend,StringRef(insertion));
-
-
-      auto callrange = SourceRange(callstart,callend.getLocWithOffset(1));
-      replacement = "";
-      diag(callstart, StringRef("function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be removed here and replaced with "+ gethandle + "("+fname+") to inialize variable "+dname+"."), DiagnosticIDs::Warning)
-        << FixItHint::CreateReplacement(callrange, StringRef(replacement));
+      //diag(callstart, StringRef("call to function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ gethandle + "("+fname+")."), DiagnosticIDs::Warning);
       break;};
     }
   }
