@@ -26,7 +26,7 @@ public:
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  enum calltype {direct,nested,ifpar};
+  enum calltype {direct,nested,ifpar,varinit};
   void report(CXXMemberCallExpr const * matchedCallExpr, calltype);
 };
 

@@ -46,43 +46,60 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                            ofClass(
                              hasName(edmevent))
                          );
-  auto getByTokenCall = cxxMemberCallExpr(
+
+  auto getByTokenCallVarInit = varDecl(
+                                hasInitializer(anyOf(
+                                  hasDescendant( 
+                                   cxxMemberCallExpr(
+                                     callee(getByTokenDecl),
+                                     argumentCountIs(2),
+                                       anyOf(
+                                         hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
+                                         hasAnyArgument(ignoringParenImpCasts(memberExpr())))
+                                   ).bind("getbytokencallexprvarinit")),
+                                  cxxMemberCallExpr(
+                                     callee(getByTokenDecl),
+                                     argumentCountIs(2),
+                                       anyOf(
+                                         hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
+                                         hasAnyArgument(ignoringParenImpCasts(memberExpr())))
+                                   ).bind("getbytokencallexprvarinit")
+                                  )));
+
+  auto getByTokenCallIfPar = ifStmt(
+                              hasCondition(anyOf(
+                                hasDescendant(
+                                   cxxMemberCallExpr(
+                                     callee(getByTokenDecl),
+                                     argumentCountIs(2),
+                                       anyOf(
+                                         hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
+                                         hasAnyArgument(ignoringParenImpCasts(memberExpr())))
+                                   ).bind("getbytokencallexprifpar")),
+                               cxxMemberCallExpr(
+                                     callee(getByTokenDecl),
+                                     argumentCountIs(2),
+                                       anyOf(
+                                         hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
+                                         hasAnyArgument(ignoringParenImpCasts(memberExpr())))
+                                   ).bind("getbytokencallexprifpar")
+                               )));
+
+  auto getByTokenCall = 
+                        cxxMemberCallExpr(
                           callee(getByTokenDecl),
                           argumentCountIs(2),
                           anyOf(
                             hasAnyArgument(declRefExpr()),
                             hasAnyArgument(memberExpr())),
-                          hasAnyArgument(cxxConstructExpr())
-                     );
-  auto getByTokenCallNested = cxxMemberCallExpr(
-                          unless(hasParent(ifStmt())),
-                          unless(hasParent(unaryOperator(hasParent(ifStmt())))),
-                          unless(hasParent(varDecl())),
-                          unless(hasParent(returnStmt())),
-                          callee(getByTokenDecl),
-                          argumentCountIs(2),
-                          anyOf(
-                            hasAnyArgument(declRefExpr()),
-                            hasAnyArgument(memberExpr())),
-                          hasAnyArgument(cxxConstructExpr())
-                     );
-  auto getByTokenCallIfPar = cxxMemberCallExpr(
-                          anyOf(hasParent(ifStmt()),
-                                hasParent(unaryOperator(hasParent(ifStmt()))),
-                                hasParent(varDecl()),
-                                hasParent(returnStmt())),
-                          callee(getByTokenDecl),
-                          argumentCountIs(2),
-                          anyOf(
-                            hasAnyArgument(declRefExpr()),
-                            hasAnyArgument(memberExpr())),
-                          hasAnyArgument(cxxConstructExpr())
-                     );
+                          unless(hasAncestor(getByTokenCallIfPar)),
+                          unless(hasAncestor(getByTokenCallVarInit))  
+                        ).bind("getbytokencallexpr");
 
 
-  Finder->addMatcher(getByTokenCall.bind("getbytokencallexpr"),this);
-  Finder->addMatcher(getByTokenCallNested.bind("getbytokencallexprnested"),this);
-  Finder->addMatcher(getByTokenCallIfPar.bind("getbytokencallexprifpar"),this);
+  Finder->addMatcher(getByTokenCall,this);
+  Finder->addMatcher(getByTokenCallVarInit,this);
+  Finder->addMatcher(getByTokenCallIfPar,this);
 }
 
 void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct) {
@@ -162,33 +179,39 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
     }
     switch (ct) {
       case ifpar: {
-      auto callrange = SourceRange(callstart,callend);
-      replacement = "("+dname+" = "+ioname+"."+gethandle + "("+fname+"))";
-      diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with ("+dname+" = "+ioname+"." + gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
+        auto callrange = SourceRange(callstart,callend);
+        replacement = "bool("+dname+" = "+ioname+"."+gethandle + "("+fname+"))";
+        diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with ("+dname+" = "+ioname+"." + gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(replacement));
-      break;};
+        break;
+      };
 
-      case nested: {
-      auto callrange = SourceRange(callstart,callend);
-      replacement = dname+" = "+ioname+"."+gethandle + "("+fname+")";
-      diag(callstart, StringRef("direct call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ dname + " = "+ioname+"." + gethandle + "("+fname+")."), DiagnosticIDs::Warning)
-        << FixItHint::CreateReplacement(callrange, StringRef(replacement));
-      break;}; 
+      case varinit: {
+        auto callrange = SourceRange(callstart,callend);
+        replacement = "bool("+dname+" = "+ioname+"."+gethandle + "("+fname+"))";
+        diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ dname + " = "+ioname+"." + gethandle + "("+fname+")."), DiagnosticIDs::Warning)
+          << FixItHint::CreateReplacement(callrange, StringRef(replacement));
+        break;
+      }; 
 
-      case direct : {    
-      //diag(callstart, StringRef("call to function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ gethandle + "("+fname+")."), DiagnosticIDs::Warning);
-      break;};
+      case direct : {
+        auto callrange = SourceRange(callstart,callend);
+        replacement = dname+" = "+ioname+"."+gethandle + "("+fname+")";
+        diag(callstart, StringRef("direct call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ dname + " = "+ioname+"." + gethandle + "("+fname+")."), DiagnosticIDs::Warning)
+          << FixItHint::CreateReplacement(callrange, StringRef(replacement));
+        break;
+      };
     }
   }
 }
 
 void HandleCheck::check(const MatchFinder::MatchResult &Result) {
+  if (const auto *matchedCallExprIfPar = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprifpar")){
+      report(matchedCallExprIfPar,ifpar);}
+  if (const auto *matchedCallExprNested = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprvarinit")){
+      report(matchedCallExprNested,varinit);}
   if (const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexpr")) {
       report(matchedCallExpr,direct);}
-  if (const auto *matchedCallExprNested = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprnested")){
-  report(matchedCallExprNested,nested);}
-  if (const auto *matchedCallExprIfPar = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprifpar")){
-  report(matchedCallExprIfPar,ifpar);}
 }
 
 
