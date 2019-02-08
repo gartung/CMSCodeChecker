@@ -24,6 +24,7 @@ const std::string gethandle = "getHandle";
 const std::string edmevent = "edm::Event";
 const std::string thisp = "this->";
 
+
 void HandleCheck::registerMatchers(MatchFinder *Finder) {
   auto edmGetTokenT = cxxRecordDecl(hasName("edm::EDGetTokenT"));
   auto edmHandle = cxxRecordDecl(hasName("edm::Handle"));
@@ -43,8 +44,8 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                                                   hasOverloadedOperatorName("*"))));
   auto getByTokenDecl = cxxMethodDecl(
                            hasName(getbytoken),
-                           ofClass(
-                             hasName(edmevent))
+                           ofClass(cxxRecordDecl(
+                             hasName(edmevent)))
                          );
 
   auto getByTokenCallVarInit = varDecl(
@@ -53,6 +54,7 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                                    cxxMemberCallExpr(
                                      callee(getByTokenDecl),
                                      argumentCountIs(2),
+                                     hasArgument(0,cxxConstructExpr(hasType(edmGetTokenT))),
                                        anyOf(
                                          hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
                                          hasAnyArgument(ignoringParenImpCasts(memberExpr())))
@@ -60,11 +62,26 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                                   cxxMemberCallExpr(
                                      callee(getByTokenDecl),
                                      argumentCountIs(2),
+                                     hasArgument(0,cxxConstructExpr(hasType(edmGetTokenT))),
                                        anyOf(
                                          hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
                                          hasAnyArgument(ignoringParenImpCasts(memberExpr())))
                                    ).bind("getbytokencallexprboolreturn")
                                   )));
+
+  auto getByTokenCallAssign = binaryOperator(
+                                  isAssignmentOperator(),
+                                  hasRHS(
+                                  cxxMemberCallExpr(
+                                     callee(getByTokenDecl),
+                                     argumentCountIs(2),
+                                     hasArgument(0,cxxConstructExpr(hasType(edmGetTokenT))),
+                                       anyOf(
+                                         hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
+                                         hasAnyArgument(ignoringParenImpCasts(memberExpr())))
+                                   ).bind("getbytokencallexprboolreturn")
+                                  ));
+
 
   auto getByTokenCallIfPar = ifStmt(
                               hasCondition(anyOf(
@@ -72,17 +89,19 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                                    cxxMemberCallExpr(
                                      callee(getByTokenDecl),
                                      argumentCountIs(2),
+                                     hasArgument(0,cxxConstructExpr(hasType(edmGetTokenT))),
                                        anyOf(
                                          hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
                                          hasAnyArgument(ignoringParenImpCasts(memberExpr())))
-                                   ).bind("getbytokencallexprboolreturn")),
+                                   ).bind("getbytokencallexprifpar")),
                                cxxMemberCallExpr(
                                      callee(getByTokenDecl),
                                      argumentCountIs(2),
+                                     hasArgument(0,cxxConstructExpr(hasType(edmGetTokenT))),
                                        anyOf(
                                          hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
                                          hasAnyArgument(ignoringParenImpCasts(memberExpr())))
-                                   ).bind("getbytokencallexprboolreturn")
+                                   ).bind("getbytokencallexprifpar")
                                )));
 
   auto getByTokenCallRetPar = returnStmt(
@@ -90,6 +109,7 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                                    cxxMemberCallExpr(
                                      callee(getByTokenDecl),
                                      argumentCountIs(2),
+                                     hasArgument(0,cxxConstructExpr(hasType(edmGetTokenT))),
                                        anyOf(
                                          hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
                                          hasAnyArgument(ignoringParenImpCasts(memberExpr())))
@@ -100,16 +120,19 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                           callee(getByTokenDecl),
                           argumentCountIs(2),
                           anyOf(
-                            hasAnyArgument(declRefExpr()),
-                            hasAnyArgument(memberExpr())),
+                            hasAnyArgument(ignoringParenImpCasts(declRefExpr())),
+                            hasAnyArgument(ignoringParenImpCasts(memberExpr()))),
                           unless(hasAncestor(getByTokenCallIfPar)),
+                          unless(hasAncestor(getByTokenCallAssign)),
                           unless(hasAncestor(getByTokenCallRetPar)),
-                          unless(hasAncestor(getByTokenCallVarInit))  
+                          unless(hasAncestor(getByTokenCallVarInit)),  
+                          hasArgument(0,cxxConstructExpr(hasType(edmGetTokenT)))
                         ).bind("getbytokencallexpr");
 
 
   Finder->addMatcher(getByTokenCall,this);
   Finder->addMatcher(getByTokenCallVarInit,this);
+  Finder->addMatcher(getByTokenCallAssign,this);
   Finder->addMatcher(getByTokenCallIfPar,this);
   Finder->addMatcher(getByTokenCallRetPar,this);
 }
@@ -145,13 +168,13 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
     ioname=outputi.str();
     for (auto I: matchedCallExpr->arguments()) {
        auto qualtype = I->getType();
-       auto type = qualtype.getTypePtr();
-       auto tstype = type->getAs<TemplateSpecializationType>();
-       auto temptype = tstype->getArgs();
-       std::string buffert;
-       llvm::raw_string_ostream outputt(buffert);
-       temptype->print(Policy,outputt);
-       ttemptype=outputt.str();
+       //auto type = qualtype.getTypePtr();
+       //auto tstype = type->getAs<TemplateSpecializationType>();
+       //auto temptype = tstype->getArgs();
+       //std::string buffert;
+       //llvm::raw_string_ostream outputt(buffert);
+       //temptype->print(Policy,outputt);
+       //ttemptype=outputt.str();
        auto iname = qualtype.getAsString();
        if (iname.find(edmhandle,0) != std::string::npos) {
           if (const auto * R = llvm::dyn_cast<DeclRefExpr>(I)) {
@@ -192,8 +215,8 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
     switch (ct) {
       case ifpar: {
         auto callrange = SourceRange(callstart,callend);
-        replacement = "bool("+dname+" = "+ioname+"."+gethandle + "("+fname+"))";
-        diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with bool("+dname+" = "+ioname+"." + gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
+        replacement = "("+dname+" = "+ioname+"."+gethandle + "("+fname+"))";
+        diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with ("+dname+" = "+ioname+"." + gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(replacement));
         break;
       };
@@ -218,12 +241,15 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
 }
 
 void HandleCheck::check(const MatchFinder::MatchResult &Result) {
-  if (const auto *matchedCallExprIfPar = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprboolreturn")){
-      report(matchedCallExprIfPar,boolret);}
+  if (const auto *matchedCallExprIfPar = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprifpar")){
+         report(matchedCallExprIfPar,ifpar);
+  }
   if (const auto *matchedCallExprNested = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexprboolreturn")){
-      report(matchedCallExprNested,boolret);}
+         report(matchedCallExprNested,boolret);
+  }
   if (const auto *matchedCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("getbytokencallexpr")) {
-      report(matchedCallExpr,direct);}
+         report(matchedCallExpr,direct);
+  }
 }
 
 

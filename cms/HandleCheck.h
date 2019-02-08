@@ -11,6 +11,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CMS_HANDLE_H
 
 #include "../ClangTidy.h"
+#include <llvm/Support/SaveAndRestore.h>
 
 namespace clang {
 namespace tidy {
@@ -28,6 +29,7 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   enum calltype {direct,nested,ifpar,varinit,boolret};
   void report(CXXMemberCallExpr const * matchedCallExpr, calltype);
+
 };
 
 } // namespace cms
