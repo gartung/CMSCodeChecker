@@ -105,7 +105,7 @@ void HandleCheck::registerMatchers(MatchFinder *Finder) {
                                )));
 
   auto getByTokenCallRetPar = returnStmt(
-                                hasDescendant(
+                                hasReturnValue(
                                    cxxMemberCallExpr(
                                      callee(getByTokenDecl),
                                      argumentCountIs(2),
