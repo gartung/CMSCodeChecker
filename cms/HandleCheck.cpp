@@ -208,6 +208,10 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
              llvm::raw_string_ostream output(buffer);
              I->printPretty(output,0,Policy);
              qname=output.str();
+             auto n = qname.find(thisp,0);
+             if (n != std::string::npos) {
+                 qname.erase(n,thisp.size());
+             }
           }
        }
        if ( iname.find(edmgettoken,0) != std::string::npos ) {
@@ -227,24 +231,24 @@ void HandleCheck::report(CXXMemberCallExpr const * matchedCallExpr, calltype ct)
     switch (ct) {
       case ifpar: {
         auto callrange = SourceRange(callstart,callend);
-        replacement = "("+dname+" = "+ioname+gethandle + "("+fname+"))";
-        diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with ("+dname+" = "+ioname+ gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
+        replacement = "("+qname+" = "+ioname+gethandle + "("+fname+"))";
+        diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with ("+qname+" = "+ioname+ gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
         << FixItHint::CreateReplacement(callrange, StringRef(replacement));
         break;
       };
 
       case boolret: {
         auto callrange = SourceRange(callstart,callend);
-        replacement = "bool("+dname+" = "+ioname+gethandle + "("+fname+"))";
-        diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with bool("+ dname + " = "+ioname+ gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
+        replacement = "bool("+qname+" = "+ioname+gethandle + "("+fname+"))";
+        diag(callstart, StringRef("bool return call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with bool("+ qname + " = "+ioname+ gethandle + "("+fname+"))."), DiagnosticIDs::Warning)
           << FixItHint::CreateReplacement(callrange, StringRef(replacement));
         break;
       }; 
 
       case direct : {
         auto callrange = SourceRange(callstart,callend);
-        replacement = dname+" = "+ioname+gethandle + "("+fname+")";
-        diag(callstart, StringRef("direct call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ dname + " = "+ioname+ gethandle + "("+fname+")."), DiagnosticIDs::Warning)
+        replacement = qname+" = "+ioname+gethandle + "("+fname+")";
+        diag(callstart, StringRef("direct call of function " + getbytoken +"("+edmgettoken+"<"+ttemptype+">&, "+edmhandle+"<"+ttemptype+">&) is deprecated and should be replaced here with "+ qname + " = "+ioname+ gethandle + "("+fname+")."), DiagnosticIDs::Warning)
           << FixItHint::CreateReplacement(callrange, StringRef(replacement));
         break;
       };
