@@ -1,3 +1,5 @@
+#include <string>
+
 namespace edm {
 
   template<typename T>
