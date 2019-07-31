@@ -15,7 +15,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/Support/ErrorOr.h"
-#include "clang/Basic/VirtualFileSystem.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <functional>
 #include <map>
 #include <string>
@@ -221,7 +221,7 @@ public:
   FileOptionsProvider(const ClangTidyGlobalOptions &GlobalOptions,
                       const ClangTidyOptions &DefaultOptions,
                       const ClangTidyOptions &OverrideOptions,
-                      llvm::IntrusiveRefCntPtr<vfs::FileSystem> FS = nullptr);
+                      llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS = nullptr);
 
   /// \brief Initializes the \c FileOptionsProvider instance with a custom set
   /// of configuration file handlers.
@@ -255,7 +255,7 @@ protected:
   llvm::StringMap<OptionsSource> CachedOptions;
   ClangTidyOptions OverrideOptions;
   ConfigFileHandlers ConfigHandlers;
-  llvm::IntrusiveRefCntPtr<vfs::FileSystem> FS;
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
 };
 
 /// \brief Parses LineFilter from JSON and stores it to the \p Options.
