@@ -254,7 +254,7 @@ static void printStats(const ClangTidyStats &Stats) {
 }
 
 static std::unique_ptr<ClangTidyOptionsProvider> createOptionsProvider(
-   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS) {
+   llvm::IntrusiveRefCntPtr<vfs::FileSystem> FS) {
   ClangTidyGlobalOptions GlobalOptions;
   if (std::error_code Err = parseLineFilter(LineFilter, GlobalOptions)) {
     llvm::errs() << "Invalid LineFilter: " << Err.message() << "\n\nUsage:\n";
@@ -302,7 +302,7 @@ static std::unique_ptr<ClangTidyOptionsProvider> createOptionsProvider(
                                                 OverrideOptions, std::move(FS));
 }
 
-llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+llvm::IntrusiveRefCntPtr<vfs::FileSystem>
 getVfsOverlayFromFile(const std::string &OverlayFile) {
   llvm::IntrusiveRefCntPtr<vfs::OverlayFileSystem> OverlayFS(
       new vfs::OverlayFileSystem(vfs::getRealFileSystem()));
@@ -315,7 +315,7 @@ getVfsOverlayFromFile(const std::string &OverlayFile) {
     return nullptr;
   }
 
-  IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS = vfs::getVFSFromYAML(
+  IntrusiveRefCntPtr<vfs::FileSystem> FS = vfs::getVFSFromYAML(
       std::move(Buffer.get()), /*DiagHandler*/ nullptr, OverlayFile);
   if (!FS) {
     llvm::errs() << "Error: invalid virtual filesystem overlay file '"
@@ -326,12 +326,41 @@ getVfsOverlayFromFile(const std::string &OverlayFile) {
   return OverlayFS;
 }
 
+llvm::IntrusiveRefCntPtr<vfs::FileSystem>
+getVfsFromFile(const std::string &OverlayFile,
+               llvm::IntrusiveRefCntPtr<vfs::FileSystem> BaseFS) {
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Buffer =
+      BaseFS->getBufferForFile(OverlayFile);
+  if (!Buffer) {
+    llvm::errs() << "Can't load virtual filesystem overlay file '"
+                 << OverlayFile << "': " << Buffer.getError().message()
+                 << ".\n";
+    return nullptr;
+  }
+
+  IntrusiveRefCntPtr<vfs::FileSystem> FS = vfs::getVFSFromYAML(
+      std::move(Buffer.get()), /*DiagHandler*/ nullptr, OverlayFile);
+  if (!FS) {
+    llvm::errs() << "Error: invalid virtual filesystem overlay file '"
+                 << OverlayFile << "'.\n";
+    return nullptr;
+  }
+  return FS;
+}
+
 static int clangTidyMain(int argc, const char **argv) {
   CommonOptionsParser OptionsParser(argc, argv, ClangTidyCategory,
                                     cl::ZeroOrMore);
-  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS(
-      VfsOverlay.empty() ? vfs::getRealFileSystem()
-                         : getVfsOverlayFromFile(VfsOverlay));
+  llvm::IntrusiveRefCntPtr<vfs::OverlayFileSystem> BaseFS(
+      new vfs::OverlayFileSystem(vfs::getRealFileSystem()));
+
+  if (!VfsOverlay.empty()) {
+    IntrusiveRefCntPtr<vfs::FileSystem> VfsFromFile =
+        getVfsFromFile(VfsOverlay, BaseFS);
+    if (!VfsFromFile)
+      return 1;
+    BaseFS->pushOverlay(VfsFromFile);
+  }                                    
   if (!BaseFS)
     return 1;
 
@@ -421,9 +450,9 @@ static int clangTidyMain(int argc, const char **argv) {
 
   ClangTidyContext Context(std::move(OwningOptionsProvider),
                            AllowEnablingAnalyzerAlphaCheckers);
-  std::vector<ClangTidyError> Errors = 
-    runClangTidy(Context, OptionsParser.getCompilations(), PathList, BaseFS, 
-		 EnableCheckProfile, ProfilePrefix);
+  std::vector<ClangTidyError> Errors =
+      runClangTidy(Context, OptionsParser.getCompilations(), PathList, BaseFS,
+                   EnableCheckProfile, ProfilePrefix);
   bool FoundErrors = llvm::find_if(Errors, [](const ClangTidyError &E) {
                        return E.DiagLevel == ClangTidyError::Error;
                      }) != Errors.end();
@@ -569,10 +598,15 @@ extern volatile int ZirconModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED ZirconModuleAnchorDestination =
     ZirconModuleAnchorSource;
 
-// This anchor is used to force the linker to link the CMS.
-extern volatile int CMSModuleAnchorSource;
-static int LLVM_ATTRIBUTE_UNUSED CMSAnchorDestination =
-    CMSModuleAnchorSource;
+// This anchor is used to force the linker to link the AliceO2Module.
+extern volatile int AliceO2ModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED AliceO2ModuleAnchorDestination =
+    AliceO2ModuleAnchorSource;
+
+// This anchor is used to force the linker to link the ReportingModule.
+extern volatile int ReportingModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED ReportingModuleAnchorDestination =
+    ReportingModuleAnchorSource; 
 
 } // namespace tidy
 } // namespace clang
