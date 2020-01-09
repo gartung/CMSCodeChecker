@@ -598,15 +598,10 @@ extern volatile int ZirconModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED ZirconModuleAnchorDestination =
     ZirconModuleAnchorSource;
 
-// This anchor is used to force the linker to link the AliceO2Module.
-extern volatile int AliceO2ModuleAnchorSource;
-static int LLVM_ATTRIBUTE_UNUSED AliceO2ModuleAnchorDestination =
-    AliceO2ModuleAnchorSource;
-
-// This anchor is used to force the linker to link the ReportingModule.
-extern volatile int ReportingModuleAnchorSource;
-static int LLVM_ATTRIBUTE_UNUSED ReportingModuleAnchorDestination =
-    ReportingModuleAnchorSource; 
+// This anchor is used to force the linker to link the CMS.
+extern volatile int CMSModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED CMSModuleAnchorDestination =
+    CMSModuleAnchorSource;
 
 } // namespace tidy
 } // namespace clang
